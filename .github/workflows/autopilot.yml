@@ -13,7 +13,9 @@ on:
 jobs:
   run:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    # 45件規模の初期データ投入を含む Issue は 30 分では終わらなかった（実測）。
+    # --max-turns がコストの上限を握っているので、時間側は余裕を持たせる。
+    timeout-minutes: 60
 
     # 同時に複数のフィードバックが届いても main を同時に触らせない
     concurrency:
@@ -84,6 +86,19 @@ jobs:
             プロダクト: ${{ inputs.project_name }}
             Issue #${{ inputs.issue_number }} として次の手順で処理してください。
 
+            **最初に必ず `gh issue view ${{ inputs.issue_number }} --comments` で
+            既存のコメントを確認してください。** これは再実行かもしれません。
+
+            - `## 仕様 (pm-triage)` のコメントが既にあり、その後に仕様の前提を
+              覆すコメントが付いていない場合 → **手順1を飛ばし、その仕様を使う**
+            - `## 画面仕様 (ux-designer)` のコメントが既にある場合
+              → **手順2を飛ばし、その画面仕様を使う**
+            - `needs-human` への回答コメント（オーナーの判断）がある場合は、
+              **その内容が既存の仕様より優先される**
+
+            同じ判断を作り直すと、実装に入る前に時間切れになります（実際に起きました）。
+            飛ばした場合は「手順Nは既存のコメントを再利用した」と1行残してください。
+
             1. @pm-triage を呼び、優先度(P0/P1/P2)を判定し仕様を書く
                - 判断に迷う、または approval_criteria を満たさない場合は
                  needs-human ラベルを付けて処理を中止する
@@ -96,6 +111,10 @@ jobs:
             3. @implementer を呼び、feature/${{ inputs.issue_number }}-* ブランチ上で実装する
                - pm-triage の受け入れ条件と ux-designer の画面仕様の両方を満たすこと
                - 文言は ux-designer が指定した文字列をそのまま使うこと
+               - **まとまった単位ができたら、テストが緑でなくてもブランチに push すること。**
+                 時間切れで打ち切られても成果が残り、次の実行が続きから始められる。
+                 既に feature/${{ inputs.issue_number }}-* ブランチがある場合は
+                 それを checkout して続きから実装する
             4. npm test と npm run lint が緑になるまで @implementer を反復させる
                （反復は最大3回。超えたら needs-human を付けて中止）
             5. @code-reviewer を呼び、差分をレビューさせる
