@@ -24,6 +24,7 @@ jobs:
       contents: write
       pull-requests: write
       issues: write
+      id-token: write     # claude-code-action が OIDC トークンを取得するのに必要
 
     steps:
       - uses: actions/checkout@v6
