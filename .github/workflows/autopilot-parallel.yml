@@ -210,6 +210,25 @@ jobs:
             --allowedTools "Task,Agent,Read,Glob,Grep,WebSearch,WebFetch,Bash(python scripts/board.py:*),Bash(gh issue view:*),Bash(gh issue comment:*),Bash(git diff:*),Bash(git log:*),Bash(npm test),Bash(npm run lint)"
             --max-turns 30
 
+      # 部署が board.py を実行しなかった場合の保険。
+      # 記録をエージェントの実行に依存させると、権限不足や早期終了で
+      # 「成功したのに報告が無い」状態になる（実運用で踏んだ）。
+      # 発言していない部署は blocked として記録され、「問題なし」と誤読されない。
+      - name: Record report from issue comment
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          HAS=$(python scripts/board.py get --path reports.${{ matrix.role }}.status)
+          if [ "$HAS" = "done" ]; then
+            echo "${{ matrix.role }} は自分で記録済み"
+          else
+            python scripts/record-report.py \
+              --role ${{ matrix.role }} \
+              --issue ${{ inputs.issue_number }} \
+              --repo ${{ github.repository }}
+          fi
+
       - name: Upload report
         if: always()
         uses: actions/upload-artifact@v4
@@ -557,6 +576,19 @@ jobs:
             --permission-mode dontAsk
             --allowedTools "Task,Agent,Read,Glob,Grep,Bash(git diff:*),Bash(git log:*),Bash(npm test),Bash(npm run lint),Bash(python scripts/board.py:*),Bash(gh issue comment:*),Bash(gh pr view:*),Bash(curl -fsS:*)"
             --max-turns 25
+
+      - name: Record report from issue comment
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          HAS=$(python scripts/board.py get --path reports.${{ matrix.role }}.status)
+          if [ "$HAS" != "done" ]; then
+            python scripts/record-report.py \
+              --role ${{ matrix.role }} \
+              --issue ${{ inputs.issue_number }} \
+              --repo ${{ github.repository }}
+          fi
 
       - uses: actions/upload-artifact@v4
         if: always()
