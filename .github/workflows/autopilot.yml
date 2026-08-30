@@ -136,7 +136,7 @@ jobs:
           claude_args: |
             --model sonnet
             --permission-mode dontAsk
-            --allowedTools "Read,Edit,Write,Glob,Grep,WebSearch,WebFetch,Bash(npm test),Bash(npm run lint),Bash(npm run build),Bash(git add:*),Bash(git commit:*),Bash(git checkout:*),Bash(git switch:*),Bash(git diff:*),Bash(git status),Bash(git push origin feature/*),Bash(gh pr create:*),Bash(gh pr view:*),Bash(gh issue comment:*),Bash(gh issue edit:*),Bash(gh issue view:*)"
+            --allowedTools "Task,Agent,Read,Edit,Write,Glob,Grep,WebSearch,WebFetch,Bash(npm test),Bash(npm run lint),Bash(npm run build),Bash(git add:*),Bash(git commit:*),Bash(git checkout:*),Bash(git switch:*),Bash(git diff:*),Bash(git status),Bash(git push origin feature/*),Bash(gh pr create:*),Bash(gh pr view:*),Bash(gh issue comment:*),Bash(gh issue edit:*),Bash(gh issue view:*)"
             --max-turns 35
 
       # パイプラインが途中で落ちても、必ず Issue に痕跡を残す

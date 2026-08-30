@@ -102,7 +102,7 @@ jobs:
           claude_args: |
             --model sonnet
             --permission-mode dontAsk
-            --allowedTools "Read,Glob,Grep,Bash(python scripts/board.py:*),Bash(gh issue view:*),Bash(gh issue comment:*)"
+            --allowedTools "Task,Agent,Read,Glob,Grep,Bash(python scripts/board.py:*),Bash(gh issue view:*),Bash(gh issue comment:*)"
             --max-turns 20
 
       - name: Publish board
@@ -185,7 +185,7 @@ jobs:
           claude_args: |
             --model sonnet
             --permission-mode dontAsk
-            --allowedTools "Read,Glob,Grep,WebSearch,WebFetch,Bash(python scripts/board.py:*),Bash(gh issue view:*),Bash(gh issue comment:*),Bash(git diff:*),Bash(git log:*),Bash(npm test),Bash(npm run lint)"
+            --allowedTools "Task,Agent,Read,Glob,Grep,WebSearch,WebFetch,Bash(python scripts/board.py:*),Bash(gh issue view:*),Bash(gh issue comment:*),Bash(git diff:*),Bash(git log:*),Bash(npm test),Bash(npm run lint)"
             --max-turns 30
 
       - name: Upload report
@@ -270,7 +270,7 @@ jobs:
           claude_args: |
             --model sonnet
             --permission-mode dontAsk
-            --allowedTools "Read,Glob,Grep,Bash(python scripts/board.py:*),Bash(gh issue view:*),Bash(gh issue comment:*),Bash(gh api:*)"
+            --allowedTools "Task,Agent,Read,Glob,Grep,Bash(python scripts/board.py:*),Bash(gh issue view:*),Bash(gh issue comment:*),Bash(gh api:*)"
             --max-turns 25
 
       - name: Publish board
@@ -356,7 +356,7 @@ jobs:
           claude_args: |
             --model sonnet
             --permission-mode dontAsk
-            --allowedTools "Read,Edit,Write,Glob,Grep,Bash(npm test),Bash(npm run lint),Bash(npm run build),Bash(python scripts/board.py:*),Bash(git add:*),Bash(git commit:*),Bash(git push origin autopilot/*),Bash(git status),Bash(git diff:*),Bash(gh issue view:*),Bash(gh issue comment:*)"
+            --allowedTools "Task,Agent,Read,Edit,Write,Glob,Grep,Bash(npm test),Bash(npm run lint),Bash(npm run build),Bash(python scripts/board.py:*),Bash(git add:*),Bash(git commit:*),Bash(git push origin autopilot/*),Bash(git status),Bash(git diff:*),Bash(gh issue view:*),Bash(gh issue comment:*)"
             --max-turns 40
 
       - name: Push and report
@@ -512,7 +512,7 @@ jobs:
           claude_args: |
             --model sonnet
             --permission-mode dontAsk
-            --allowedTools "Read,Glob,Grep,Bash(git diff:*),Bash(git log:*),Bash(npm test),Bash(npm run lint),Bash(python scripts/board.py:*),Bash(gh issue comment:*),Bash(gh pr view:*),Bash(curl -fsS:*)"
+            --allowedTools "Task,Agent,Read,Glob,Grep,Bash(git diff:*),Bash(git log:*),Bash(npm test),Bash(npm run lint),Bash(python scripts/board.py:*),Bash(gh issue comment:*),Bash(gh pr view:*),Bash(curl -fsS:*)"
             --max-turns 25
 
       - uses: actions/upload-artifact@v4
@@ -584,7 +584,7 @@ jobs:
           claude_args: |
             --model sonnet
             --permission-mode dontAsk
-            --allowedTools "Read,Glob,Grep,Bash(python scripts/board.py:*),Bash(git diff:*),Bash(git log:*),Bash(gh pr create:*),Bash(gh pr view:*),Bash(gh issue comment:*),Bash(gh issue edit:*)"
+            --allowedTools "Task,Agent,Read,Glob,Grep,Bash(python scripts/board.py:*),Bash(git diff:*),Bash(git log:*),Bash(gh pr create:*),Bash(gh pr view:*),Bash(gh issue comment:*),Bash(gh issue edit:*)"
             --max-turns 25
 
       - name: Publish board
