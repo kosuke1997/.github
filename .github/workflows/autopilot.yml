@@ -42,12 +42,19 @@ jobs:
       # ファイルの中身を検査する CI ステップをここに置く。
       - name: Guard destructive migrations
         run: |
+          # SQL の行コメントを落としてから検査する。
+          # 「DROP は書くな」と書いた説明文そのものに引っかかるのを避けるため。
+          FOUND=0
           if [ -d migrations ]; then
-            if grep -rniE 'DROP[[:space:]]+(TABLE|COLUMN)|TRUNCATE|ALTER[[:space:]]+TABLE[^;]*NOT[[:space:]]+NULL' migrations/; then
-              echo "::error::破壊的DDLを検出しました。人間の確認が必要です。"
-              exit 1
-            fi
+            while IFS= read -r f; do
+              if sed 's/--.*$//' "$f" |
+                 grep -niE 'DROP[[:space:]]+(TABLE|COLUMN)|TRUNCATE|ALTER[[:space:]]+TABLE[^;]*NOT[[:space:]]+NULL'; then
+                echo "::error file=$f::破壊的DDLを検出しました。人間の確認が必要です。"
+                FOUND=1
+              fi
+            done < <(find migrations -name '*.sql')
           fi
+          [ "$FOUND" = "0" ] || exit 1
           echo "migrations: 破壊的DDLなし"
 
       # 関門2: ベースラインが緑であることを確認（同一ジョブ内で実行する）
