@@ -21,7 +21,6 @@ on:
       issue_body:   { required: true,  type: string }
       project_name: { required: true,  type: string }
       node_version: { required: false, type: string, default: '22' }
-      max_parallel: { required: false, type: number, default: 3 }
 
 # Issue 単位で直列化する。別々の Issue は同時に走ってよい（これが並列化の主な効果）。
 # 同じ Issue の2ラウンドが重なると board.json が壊れるため、そこだけは直列にする。
@@ -342,6 +341,16 @@ jobs:
   # ────────────────────────────────────────────────────────────
   # 局面4: 実装 — ファイル集合が重ならないタスクを同時に走らせる
   # ────────────────────────────────────────────────────────────
+  # single writer: 実装は1ジョブ・1コンテキストで行う。
+  #
+  # 以前は matrix で並列に書いていたが、これは調査で「壊れる」と名指しされた
+  # パターンだった。触るファイルを分けても、「どのユーティリティを作ったか」
+  # 「型をどう命名したか」は互いに見えない。統合時に矛盾するか重複が残る。
+  #
+  #   マルチエージェントが機能するのは書き込みがシングルスレッドに保たれ、
+  #   追加のエージェントが行動ではなく知性を提供する場合である。 — Cognition
+  #
+  # 並列にしてよいのは読むだけの役（分析・検証）だけ。
   implement:
     needs: [plan, integrate]
     if: needs.integrate.outputs.blocked == 'null' && needs.integrate.outputs.impl_tasks != '[]'
@@ -351,11 +360,6 @@ jobs:
       contents: write
       issues: write
       id-token: write
-    strategy:
-      fail-fast: false
-      max-parallel: ${{ inputs.max_parallel }}
-      matrix:
-        task: ${{ fromJson(needs.integrate.outputs.impl_tasks) }}
     steps:
       - uses: actions/checkout@v6
         with:
@@ -371,14 +375,14 @@ jobs:
       - uses: actions/setup-python@v5
         with: { python-version: '3.12' }
 
-      # タスクごとに別ブランチ。同時に push してもぶつからない。
-      - name: Branch for ${{ matrix.task.id }}
+      # 書き込みは作業ブランチ1本に集約する。タスクごとに分けない。
+      - name: Prepare branch
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git checkout -B "$BRANCH-${{ matrix.task.id }}"
+          git checkout -B "$BRANCH"
 
-      - name: Implement ${{ matrix.task.id }}
+      - name: Implement
         uses: anthropics/claude-code-action@v1
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -388,45 +392,55 @@ jobs:
           # エージェントは「読めなかった」と報告するだけで何もせず終わる。
           github_token: ${{ secrets.GITHUB_TOKEN }}
           prompt: |
-            @implementer を呼び、下記のタスクだけを実装してください。
+            @implementer を呼び、Issue #${{ inputs.issue_number }} を実装してください。
 
-            Issue: #${{ inputs.issue_number }}
-            タスク: ${{ matrix.task.id }} — ${{ matrix.task.title }}
-            触ってよいファイル: ${{ join(matrix.task.files, ', ') }}
-
-            **触ってよいファイル以外を変更しないこと。**
-            他のタスクが同時に走っており、範囲外を触ると統合時に必ず壊れます。
+            実装タスクは `python scripts/board.py get --path impl_tasks` にあります。
+            **1つのセッションで、依存順に順番に**片付けてください。
+            分割は作業の順序を示すものであり、並列に実装するためのものではありません。
 
             仕様は `python scripts/board.py show` と Issue のコメントにあります。
             orchestrator の統合仕様が、各部署の個別報告より優先されます。
 
             手順:
-            1. 実装する
+            1. 依存のないタスクから順に実装する
             2. `npm test` と `npm run lint` を緑にする
-            3. **まとまった単位ができたら、緑でなくても commit して push する**
-               （時間切れで打ち切られても成果が残る）
-            4. 最後に push して、ボードに記録する:
-               python scripts/board.py report --role "impl:${{ matrix.task.id }}" \
+            3. **1タスク終えるごとに commit して push する**
+               （時間切れで打ち切られても成果が残り、次の実行が続きから始められる）
+            4. 全部終えたらボードに記録する:
+               python scripts/board.py report --role implementer \
                  --status done --verdict "完了" --summary "<何をしたか3行以内>"
 
-            仕様を満たせない場合は無理に進めず、`--status blocked` で記録して停止してください。
+            途中で時間切れになりそうなら、**終わった分だけを push して**
+            `--status blocked --summary "t1完了、t2以降は未着手"` と記録してください。
+            仕様を満たせない場合も無理に進めず、理由を記録して停止してください。
           claude_args: |
             --model sonnet
             --permission-mode dontAsk
             --allowedTools "Task,Agent,Read,Edit,Write,Glob,Grep,Bash(npm test),Bash(npm run lint),Bash(npm run build),Bash(python scripts/board.py:*),Bash(git add:*),Bash(git commit:*),Bash(git push origin autopilot/*),Bash(git status),Bash(git diff:*),Bash(gh issue view:*),Bash(gh issue comment:*)"
             --max-turns 40
 
-      - name: Push and report
+      - name: Push
         if: always()
         run: |
           git add -A
-          git commit -q -m "feat(${{ matrix.task.id }}): ${{ matrix.task.title }}" || true
-          git push -q -u origin "$BRANCH-${{ matrix.task.id }}" --force-with-lease || true
+          git commit -q -m "feat: Issue #${{ inputs.issue_number }} の実装" || true
+          git push -q -u origin "$BRANCH" --force-with-lease || true
+
+      - name: Record report from issue comment
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          HAS=$(python scripts/board.py get --path reports.implementer.status)
+          if [ "$HAS" = "null" ]; then
+            python scripts/record-report.py --role implementer \
+              --issue ${{ inputs.issue_number }} --repo ${{ github.repository }}
+          fi
 
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: impl-${{ matrix.task.id }}
+          name: impl-report
           path: .autopilot/board.json
           if-no-files-found: warn
 
@@ -466,28 +480,17 @@ jobs:
 
       # 分割時に files が重ならないことを検査済みなので、通常はぶつからない。
       # ぶつかったら分割ミスなので、記録して止める（自動解決しない）。
-      - name: Merge task branches
+      # single writer にしたのでブランチの統合は不要。
+      # 報告を集めて関門を通すだけの局面になった。
+      - name: Collect reports
         id: mg
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
+          git pull -q --rebase origin "$BRANCH" || true
           python scripts/board.py merge --dir .autopilot/incoming
           rm -rf .autopilot/incoming
-
-          git fetch origin "+refs/heads/$BRANCH-*:refs/remotes/origin/$BRANCH-*" || true
-          CONFLICT=""
-          for b in $(git branch -r | grep "origin/$BRANCH-" | sed 's|origin/||' | tr -d ' '); do
-            echo "取り込み: $b"
-            if ! git merge --no-edit "origin/$b"; then
-              git merge --abort || true
-              CONFLICT="$CONFLICT $b"
-            fi
-          done
-          if [ -n "$CONFLICT" ]; then
-            python scripts/board.py block \
-              --reason "実装ブランチが衝突しました:$CONFLICT — 局面2の分割で files が重なっていた可能性があります"
-          fi
-          echo "conflict=$CONFLICT" >> "$GITHUB_OUTPUT"
+          echo "conflict=" >> "$GITHUB_OUTPUT"
 
       - name: Gate — migrations
         if: steps.mg.outputs.conflict == ''
