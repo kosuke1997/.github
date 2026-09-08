@@ -472,15 +472,24 @@ jobs:
           BLOCKED=$(python scripts/board.py get --path blocked)
           echo "blocked=$BLOCKED" >> "$GITHUB_OUTPUT"
 
+          # 司令塔が分割しなかった場合の保険。
+          #
+          # single writer にした今、分割は「実装の順序のヒント」でしかない。
+          # 分割がないこと自体は実装を妨げないので、1タスクとして進める。
+          # ここで止めると、司令塔がツールを1回呼び損ねただけでパイプライン全体が
+          # 死ぬ（実際に3回連続で起きた）。記録をエージェントの実行に依存させない。
           TASKS=$(python scripts/board.py get --path impl_tasks)
+          if [ "$TASKS" = "[]" ] && [ "$BLOCKED" = "null" ]; then
+            echo "::warning::orchestrator が分割しなかったため、1タスクとして進めます。"
+            python scripts/board.py tasks --json \
+              '[{"id":"t1","title":"Issue #${{ inputs.issue_number }} の実装","files":["**"],"depends_on":[]}]'
+            TASKS=$(python scripts/board.py get --path impl_tasks)
+            git add .autopilot/board.json
+            git commit -q -m "chore(autopilot): 既定の1タスクを設定" || true
+            git push -q origin "$BRANCH" --force-with-lease || true
+          fi
           echo "impl_tasks=$TASKS" >> "$GITHUB_OUTPUT"
           echo "実装タスク: $TASKS"
-
-          if [ "$TASKS" = "[]" ] && [ "$BLOCKED" = "null" ]; then
-            echo "::error::orchestrator が実装タスクを作りませんでした。"
-            echo "::error::分析ラウンドの報告がボードに届いているかを確認してください。"
-            exit 1
-          fi
 
   # ────────────────────────────────────────────────────────────
   # 局面4: 実装 — ファイル集合が重ならないタスクを同時に走らせる
